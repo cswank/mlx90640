@@ -100,30 +100,19 @@ fn set_refresh_rate(rate: u16) !void {
 }
 
 fn refresh_rate() !u3 {
-    var data: [2]u8 = undefined;
+    var data: [1]u16 = undefined;
+    try write_then_read(MLX90640_REGISTER_1, data[0..1]);
 
-    const req = [2]u8{
-        MLX90640_REGISTER_1 >> 8,
-        MLX90640_REGISTER_1 & 0xFF,
-    };
-
-    try i2c0.write_then_read_blocking(addr, req[0..2], data[0..2], null);
-
-    const val = std.mem.readInt(u16, data[0..2], .big) >> 7 & 0b111;
+    const val = data[0] >> 7 & 0b111;
     return @as(u3, @truncate(val));
 }
 
 fn resolution() !u2 {
-    var data: [2]u8 = undefined;
+    var data: [1]u16 = undefined;
 
-    const req = [2]u8{
-        MLX90640_REGISTER_1 >> 8,
-        MLX90640_REGISTER_1 & 0xFF,
-    };
+    try write_then_read(MLX90640_REGISTER_1, data[0..1]);
 
-    try i2c0.write_then_read_blocking(addr, req[0..2], data[0..2], null);
-
-    const val = std.mem.readInt(u16, data[0..2], .big) >> 10 & 0b11;
+    const val = data[0] >> 10 & 0b11;
     return @as(u2, @truncate(val));
 }
 
