@@ -63,29 +63,25 @@ fn set_refresh_rate(rate: u16) !void {
 }
 
 fn refresh_rate() !u3 {
-    var data: [1]u16 = undefined;
-    try write_then_read(REGISTER_1, data[0..1]);
-    const val = data[0] >> 7 & 0b111;
+    try write_then_read(REGISTER_1, frame[0..1]);
+    const val = frame[0] >> 7 & 0b111;
     return @as(u3, @truncate(val));
 }
 
 fn resolution() !u2 {
-    var data: [1]u16 = undefined;
-    try write_then_read(REGISTER_1, data[0..1]);
-    const val = data[0] >> 10 & 0b11;
+    try write_then_read(REGISTER_1, frame[0..1]);
+    const val = frame[0] >> 10 & 0b11;
     return @as(u2, @truncate(val));
 }
 
 fn serial_number() !u48 {
-    var data: [3]u16 = undefined;
+    try write_then_read(0x2407, frame[0..1]);
+    try write_then_read(0x2408, frame[1..2]);
+    try write_then_read(0x2409, frame[2..3]);
 
-    try write_then_read(0x2407, data[0..1]);
-    try write_then_read(0x2408, data[1..2]);
-    try write_then_read(0x2409, data[2..3]);
-
-    return @as(u48, data[0]) << 32 |
-        @as(u48, data[1]) << 16 |
-        @as(u48, data[2]);
+    return @as(u48, frame[0]) << 32 |
+        @as(u48, frame[1]) << 16 |
+        @as(u48, frame[2]);
 }
 
 fn pixels() !void {
@@ -100,9 +96,8 @@ fn pixels() !void {
 }
 
 fn isReady() !bool {
-    var buf: [1]u16 = undefined;
-    try write_then_read(0x800, &buf);
-    return (buf[0] >> 4 | 0b1) > 0;
+    try write_then_read(0x800, frame[0..1]);
+    return (frame[0] >> 4 | 0b1) > 0;
 }
 
 fn write_then_read(address: u16, buf: []u16) !void {
