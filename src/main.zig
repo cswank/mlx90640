@@ -39,14 +39,14 @@ pub fn main() !void {
     try init();
 
     const sn = try serial_number();
-    std.log.info("camera serial number: {x}", .{sn});
+    std.log.info("camera serial number: 0x{x}", .{sn});
 
     try set_refresh_rate(1);
     const rate = try refresh_rate();
-    std.log.info("camera refresh rate: {b}", .{rate});
+    std.log.info("camera refresh rate: 0b{b:0>3}", .{rate});
 
     const rez = try resolution();
-    std.log.info("camera resolution: {b}", .{rez});
+    std.log.info("camera resolution: 0b{b:0>2}", .{rez});
 
     while (true) {
         //try pixels();
