@@ -38,13 +38,13 @@ pub fn PicoI2C() type {
                 .address = address,
                 .frame_data = [_]u8{0} ** (834 * 2),
                 .interface = lib.I2C(){
-                    .write_then_read_fn = write_then_read,
+                    .write_then_read_fn = writeThenRead,
                     .write_fn = write,
                 },
             };
         }
 
-        pub fn write_then_read(comm: *lib.I2C(), address: u16, buf: []u16) !void {
+        pub fn writeThenRead(comm: *lib.I2C(), address: u16, buf: []u16) !void {
             const self: *Self = @fieldParentPtr("interface", comm);
 
             const req = [2]u8{ @as(u8, @truncate(address >> 8)), @as(u8, @truncate(address & 0xFF)) };
@@ -75,26 +75,21 @@ pub fn main() !void {
     var pi2c: PicoI2C() = PicoI2C().init(&i2c0, i2c.Address.new(0x33));
     var camera = lib.MLX90640().init(&pi2c.interface);
 
-    const sn = try camera.serial_number();
+    const sn = try camera.serialNumber();
     std.log.info("camera serial number: 0x{x}", .{sn});
 
-    try camera.set_refresh_rate(0b011);
-    const rate = try camera.refresh_rate();
+    try camera.setRefreshRate(0b011);
+    const rate = try camera.refreshRate();
     std.log.info("camera refresh rate: 0b{b:0>3}", .{rate});
 
     const rez = try camera.resolution();
     std.log.info("camera resolution: 0b{b:0>2}", .{rez});
 
-    // try write_then_read(CONTROL_REGISTER, frame[0..1]);
-    // std.log.info("control register: 0b{b:0>16}", .{frame[0]});
-
-    // try write_then_read(0x2400, &eeprom);
-
-    // var params: parameters = parameters{};
-    // extractParameters(&params);
+    var frame: [834]u16 = undefined;
 
     while (true) {
-        //try pixels();
+        try camera.pixels(&frame);
+        std.log.info("{x}", .{frame[400..410]});
         time.sleep_ms(100);
     }
 }
