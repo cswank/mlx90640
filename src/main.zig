@@ -78,12 +78,12 @@ pub fn main() !void {
     const sn = try camera.serial_number();
     std.log.info("camera serial number: 0x{x}", .{sn});
 
-    // try set_refresh_rate(0b011);
-    // const rate = try refresh_rate();
-    // std.log.info("camera refresh rate: 0b{b:0>3}", .{rate});
+    try camera.set_refresh_rate(0b011);
+    const rate = try camera.refresh_rate();
+    std.log.info("camera refresh rate: 0b{b:0>3}", .{rate});
 
-    // const rez = try resolution();
-    // std.log.info("camera resolution: 0b{b:0>2}", .{rez});
+    const rez = try camera.resolution();
+    std.log.info("camera resolution: 0b{b:0>2}", .{rez});
 
     // try write_then_read(CONTROL_REGISTER, frame[0..1]);
     // std.log.info("control register: 0b{b:0>16}", .{frame[0]});

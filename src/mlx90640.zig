@@ -4,8 +4,6 @@ const OPENAIR_TA_SHIFT = 8;
 const CONTROL_REGISTER = 0x800D;
 const STATUS_REGISTER = 0x8000;
 
-var eeprom: [832]u16 = undefined;
-var frame: [834]u16 = undefined;
 const frame_loop: [2]u1 = [2]u1{ 0, 1 };
 const ksto_loop: [4]u2 = [4]u2{ 0, 1, 2, 3 };
 const refresh_rate_mask: u16 = 0b111 << 7;
@@ -29,6 +27,8 @@ pub fn I2C() type {
 pub fn MLX90640() type {
     return struct {
         const Self = @This();
+        eeprom: [832]u16 = undefined,
+        frame: [834]u16 = undefined,
         i2c: *I2C(),
 
         pub fn init(i: *I2C()) MLX90640() {
@@ -37,30 +37,30 @@ pub fn MLX90640() type {
             };
         }
 
-        pub fn serial_number(self: Self) !u48 {
-            try self.i2c.write_then_read(0x2407, frame[0..3]);
-            return @as(u48, frame[0]) << 32 |
-                @as(u48, frame[1]) << 16 |
-                @as(u48, frame[2]);
+        pub fn serial_number(self: *Self) !u48 {
+            try self.i2c.write_then_read(0x2407, self.frame[0..3]);
+            return @as(u48, self.frame[0]) << 32 |
+                @as(u48, self.frame[1]) << 16 |
+                @as(u48, self.frame[2]);
         }
 
-        // pub fn set_refresh_rate(self: Self, rate: u16) !void {
-        //     try self.i2c.write_then_read(CONTROL_REGISTER, self.frame[0..1]);
-        //     const val: u16 = (frame[0] & ~self.refresh_rate_mask) | ((rate << 7) & refresh_rate_mask);
-        //     try self.i2c.write(CONTROL_REGISTER, val);
-        // }
+        pub fn set_refresh_rate(self: *Self, rate: u16) !void {
+            try self.i2c.write_then_read(CONTROL_REGISTER, self.frame[0..1]);
+            const val: u16 = (self.frame[0] & ~refresh_rate_mask) | ((rate << 7) & refresh_rate_mask);
+            try self.i2c.write(CONTROL_REGISTER, val);
+        }
 
-        // pub fn refresh_rate(self: Self) !u3 {
-        //     try self.i2c.write_then_read(CONTROL_REGISTER, self.frame[0..1]);
-        //     const val = self.frame[0] >> 7 & 0b111;
-        //     return @as(u3, @truncate(val));
-        // }
+        pub fn refresh_rate(self: *Self) !u3 {
+            try self.i2c.write_then_read(CONTROL_REGISTER, self.frame[0..1]);
+            const val = self.frame[0] >> 7 & 0b111;
+            return @as(u3, @truncate(val));
+        }
 
-        // pub fn resolution(self: Self) !u2 {
-        //     try self.i2c.write_then_read(CONTROL_REGISTER, self.frame[0..1]);
-        //     const val = self.frame[0] >> 10 & 0b11;
-        //     return @as(u2, @truncate(val));
-        // }
+        pub fn resolution(self: *Self) !u2 {
+            try self.i2c.write_then_read(CONTROL_REGISTER, self.frame[0..1]);
+            const val = self.frame[0] >> 10 & 0b11;
+            return @as(u2, @truncate(val));
+        }
     };
 }
 
