@@ -31,6 +31,7 @@ pub fn MLX90640() type {
         const Self = @This();
         eeprom: [832]u16 = undefined,
         frame: [4]u16 = undefined,
+        scratch_data: [768]f32 = undefined,
         i2c: *I2C(),
         params: parameters,
 
@@ -95,11 +96,11 @@ pub fn MLX90640() type {
             self.extractKta();
             self.extractKst0();
             self.extractCp();
-            // self.alpha(self.params);
-            // self.offset(self.params);
-            // self.ktapixel(self.params);
-            // self.kvpixel(self.params);
-            // self.cilc(self.params);
+            self.extractAlpha();
+            self.extractOffset();
+            // self.ktapixel();
+            // self.kvpixel();
+            // self.cilc();
         }
 
         fn extractVdd(self: *Self) void {
@@ -186,7 +187,8 @@ pub fn MLX90640() type {
         }
 
         fn extractCp(self: *Self) void {
-            //alphaScale = ((self.eeprom[32] & 0xF000) >> 12) + 27;
+            const alphaScale = ((self.self.eeprom[32] & 0xF000) >> 12) + 27;
+
             self.params.cpOffset[0] = @intCast(self.eeprom[58] & 0x03FF);
             if (self.params.cpOffset[0] > 511) {
                 self.params.cpOffset[0] = self.params.cpOffset[0] - 1024;
@@ -202,10 +204,14 @@ pub fn MLX90640() type {
                 self.params.cpAlpha[0] -= 1024;
             }
 
+            self.params.cpAlpha[0] /= @floatFromInt(std.math.pow(2, alphaScale));
+
             self.params.cpAlpha[1] = @floatFromInt((self.eeprom[57] & 0xFC00) >> 10);
             if (self.params.cpAlpha[1] > 31) {
                 self.params.cpAlpha[1] -= 64;
             }
+
+            self.params.alphaSP[1] = (1 + self.params.alphaSP[1] / 128) * self.params.alphaSP[0];
 
             self.params.cpKta = @floatFromInt(self.eeprom[59] & 0x00FF);
             if (self.params.cpKta > 127) {
@@ -222,6 +228,133 @@ pub fn MLX90640() type {
 
             const kvScale: f32 = @floatFromInt((self.eeprom[56] & 0x0F00) >> 8);
             self.params.cpKv /= std.math.pow(f32, 2, kvScale);
+        }
+
+        fn extractAlpha(self: *Self) void {
+            const accRemScale: u8 = self.eeprom[32] & 0x000F;
+            const accColumnScale: u8 = (self.eeprom[32] & 0x00F0) >> 4;
+            const accRowScale: u8 = (self.eeprom[32] & 0x0F00) >> 8;
+            const alphaScale: u8 = ((self.eeprom[32] & 0xF000) >> 12) + 30;
+            const alphaRef: u8 = self.eeprom[33];
+
+            var accRow: u16[24] = undefined;
+            var accColumn: u16[32] = undefined;
+
+            for (0..6) |i| {
+                const p = i * 4;
+                accRow[p + 0] = (self.eeprom[34 + i] & 0x000F);
+                accRow[p + 1] = (self.eeprom[34 + i] & 0x00F0) >> 4;
+                accRow[p + 2] = (self.eeprom[34 + i] & 0x0F00) >> 8;
+                accRow[p + 3] = (self.eeprom[34 + i] & 0xF000) >> 12;
+            }
+
+            for (0..24) |i| {
+                if (accRow[i] > 7) {
+                    accRow[i] = accRow[i] - 16;
+                }
+            }
+
+            for (0..8) |i| {
+                const p = i * 4;
+                accColumn[p + 0] = (self.eeprom[40 + i] & 0x000F);
+                accColumn[p + 1] = (self.eeprom[40 + i] & 0x00F0) >> 4;
+                accColumn[p + 2] = (self.eeprom[40 + i] & 0x0F00) >> 8;
+                accColumn[p + 3] = (self.eeprom[40 + i] & 0xF000) >> 12;
+            }
+
+            for (0..32) |i| {
+                if (accColumn[i] > 7) {
+                    accColumn[i] = accColumn[i] - 16;
+                }
+            }
+
+            for (0..24) |i| {
+                for (0..32) |j| {
+                    const p = 32 * i + j;
+                    self.scratch_data[p] = (self.eeprom[64 + p] & 0x03F0) >> 4;
+                    if (self.scratch_data[p] > 31) {
+                        self.scratch_data[p] = self.scratch_data[p] - 64;
+                    }
+                    self.scratch_data[p] = self.scratch_data[p] * (1 << accRemScale);
+                    self.scratch_data[p] = (alphaRef + (accRow[i] << accRowScale) + (accColumn[j] << accColumnScale) + self.scratch_data[p]);
+                    self.scratch_data[p] /= @floatFromInt(std.math.pow(2, alphaScale));
+                    self.scratch_data[p] = self.scratch_data[p] - self.params.tgc * (self.params.cpAlpha[0] + self.params.cpAlpha[1]) / 2;
+                    self.scratch_data[p] = SCALEALPHA / self.scratch_data[p];
+                }
+            }
+
+            var temp = self.scratch_data[0];
+            for (1..768) |i| {
+                if (self.scratch_data[i] > temp) {
+                    temp = self.scratch_data[i];
+                }
+            }
+
+            alphaScale = 0;
+            while (temp < 32768) {
+                temp = temp * 2;
+                alphaScale = alphaScale + 1;
+            }
+
+            for (0..768) |i| {
+                temp = self.scratch_data[i] * std.math.pow(2, alphaScale);
+                self.params.alpha[i] = (temp + 0.5);
+            }
+
+            self.params.alphaScale = alphaScale;
+        }
+
+        fn extractOffset(self: *Self) void {
+            var occRow: [24]u16 = undefined;
+            var occColumn: [32]u16 = undefined;
+            const occRemScale: u8 = (self.eeprom[16] & 0x000F);
+            const occColumnScale: u8 = (self.eeprom[16] & 0x00F0) >> 4;
+            const occRowScale: u8 = (self.eeprom[16] & 0x0F00) >> 8;
+            const offsetRef: i16 = self.eeprom[17];
+
+            if (offsetRef > 32767) {
+                offsetRef -= 65536;
+            }
+
+            for (0..6) |i| {
+                const p = i * 4;
+                occRow[p + 0] = (self.eeprom[18 + i] & 0x000F);
+                occRow[p + 1] = (self.eeprom[18 + i] & 0x00F0) >> 4;
+                occRow[p + 2] = (self.eeprom[18 + i] & 0x0F00) >> 8;
+                occRow[p + 3] = (self.eeprom[18 + i] & 0xF000) >> 12;
+            }
+
+            for (0..24) |i| {
+                if (occRow[i] > 7) {
+                    occRow[i] -= 16;
+                }
+            }
+
+            for (0..8) |i| {
+                const p = i * 4;
+                occColumn[p + 0] = (self.eeprom[24 + i] & 0x000F);
+                occColumn[p + 1] = (self.eeprom[24 + i] & 0x00F0) >> 4;
+                occColumn[p + 2] = (self.eeprom[24 + i] & 0x0F00) >> 8;
+                occColumn[p + 3] = (self.eeprom[24 + i] & 0xF000) >> 12;
+            }
+
+            for (0..32) |i| {
+                if (occColumn[i] > 7) {
+                    occColumn[i] = occColumn[i] - 16;
+                }
+            }
+
+            for (0..24) |i| {
+                for (0..32) |j| {
+                    const p = 32 * i + j;
+                    self.params.offset[p] = (self.eeprom[64 + p] & 0xFC00) >> 10;
+                    if (self.params.offset[p] > 31) {
+                        self.params.offset[p] = self.params.offset[p] - 64;
+                    }
+                    self.params.offset[p] = self.params.offset[p] * (1 << occRemScale);
+                    self.params.offset[p] = (offsetRef + (occRow[i] << occRowScale) + (occColumn[j] << occColumnScale) + self.params.offset[p]);
+                }
+            }
         }
     };
 }
@@ -256,9 +389,6 @@ const parameters = struct {
     outlierPixels: [5]u16 = undefined,
 };
 
-// // fn extract_alpha(self.params: *parameters) void {
-
-// // }
 // // fn extract_offset(self.params: *parameters) void {}
 // // fn extract_ktapixel(self.params: *parameters) void {}
 // // fn extract_kvpixel(self.params: *parameters) void {}
