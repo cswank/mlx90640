@@ -85,11 +85,16 @@ pub fn main() !void {
     const rez = try camera.resolution();
     std.log.info("camera resolution: 0b{b:0>2}", .{rez});
 
-    var frame: [834]u16 = undefined;
+    camera.extractParameters() catch |err| {
+        std.log.info("error: bad pixels {}", .{err});
+        return;
+    };
+
+    //var frame: [834]u16 = undefined;
 
     while (true) {
-        try camera.pixels(&frame);
-        std.log.info("{x}", .{frame[400..410]});
+        //try camera.pixels(&frame);
+        //std.log.info("{x}", .{frame[400..410]});
         time.sleep_ms(100);
     }
 }
