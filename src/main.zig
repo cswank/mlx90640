@@ -96,17 +96,36 @@ pub fn main() !void {
 
     var x: [24][32]f32 = undefined;
 
+    // the temperatures are all whack the first time
+    try camera.loadFrame();
+    time.sleep_ms(100);
+
+    var maxi: i8 = 0;
+    var maxj: i8 = 0;
+    var max: f32 = 0;
+
     while (true) {
         try camera.temperature(&temp, emissivity, tr);
+
         for (0..24) |i| {
             for (0..32) |j| {
                 x[i][j] = temp[i + (i * j)];
+                if (x[i][j] > max) {
+                    max = x[i][j];
+                    maxi = @intCast(i);
+                    maxj = @intCast(j);
+                }
             }
         }
-        for (0..24) |i| {
-            std.log.debug("{d:.3}\n", .{x[i]});
-        }
+
+        std.log.debug("{d},{d}", .{ maxi, maxj });
+        // for (0..24) |i| {
+        //     std.log.debug("{d:.3}\n", .{x[i]});
+        // }
         time.sleep_ms(100);
+        maxi = 0;
+        maxj = 0;
+        max = 0;
     }
 }
 

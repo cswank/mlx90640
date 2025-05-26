@@ -88,9 +88,9 @@ pub fn MLX90640() type {
             tr4 = tr4 * tr4;
             const taTr: f32 = tr4 - (tr4 - ta4) / emissivity;
 
-            const ktaScale: f32 = @floatFromInt(std.math.pow(u32, 2, self.params.ktaScale));
-            const kvScale: f32 = @floatFromInt(std.math.pow(u32, 2, self.params.kvScale));
-            const alphaScale: f32 = @floatFromInt(std.math.pow(u32, 2, self.params.alphaScale));
+            const ktaScale: f32 = @floatFromInt(std.math.pow(u16, 2, self.params.ktaScale));
+            const kvScale: f32 = @floatFromInt(std.math.pow(u16, 2, self.params.kvScale));
+            const alphaScale: f32 = @floatFromInt(std.math.pow(u16, 2, self.params.alphaScale));
 
             var alphaCorrR: [4]f32 = undefined;
             alphaCorrR[0] = 1 / (1 + self.params.ksTo[0] * 40);
@@ -148,9 +148,6 @@ pub fn MLX90640() type {
                     pattern = chessPattern;
                 }
 
-                //std.debug.print("pattern: {d}, 833: {d}, subpage: {d}, mode: {d}\n", .{ pattern, self.frame[833], subPage, mode });
-
-                //if (pattern == (self.frame[833] & 0x0001)) {
                 var irData: f32 = @floatFromInt(self.frame[i]);
                 if (irData > 32767) {
                     irData = irData - 65536;
@@ -195,9 +192,7 @@ pub fn MLX90640() type {
 
                 const y: f32 = @floatFromInt(self.params.ct[range]);
                 To = std.math.sqrt(std.math.sqrt(irData / (alphaCompensated * alphaCorrR[range] * (1 + self.params.ksTo[range] * (To - y))) + taTr)) - 273.15;
-
                 result[i] = To;
-                //}
             }
         }
 
@@ -216,7 +211,7 @@ pub fn MLX90640() type {
             return vdd;
         }
 
-        fn loadFrame(self: *Self) !void {
+        pub fn loadFrame(self: *Self) !void {
             var ready: bool = false;
             for (frame_loop) |i| {
                 while (!ready) {
@@ -264,7 +259,7 @@ pub fn MLX90640() type {
             self.extractTgc();
             self.extractResolution();
             self.extractKta();
-            self.extractKst0();
+            self.extractKsTo();
             self.extractCp();
             self.extractAlpha();
             self.extractOffset();
@@ -338,7 +333,7 @@ pub fn MLX90640() type {
             self.params.KsTa /= 8192.0;
         }
 
-        fn extractKst0(self: *Self) void {
+        fn extractKsTo(self: *Self) void {
             const step: i16 = @intCast(((self.eeprom[63] & 0x3000) >> 12) * 10);
             self.params.ct[0] = -40;
             self.params.ct[1] = 0;
@@ -356,7 +351,7 @@ pub fn MLX90640() type {
             const y: u32 = @as(u32, 1) << x;
             const KsToScale: f32 = @floatFromInt(y);
 
-            for (ksto_loop) |i| {
+            for (0..4) |i| {
                 if (self.params.ksTo[i] > 127) {
                     self.params.ksTo[i] -= 256;
                 }
