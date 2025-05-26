@@ -1,13 +1,14 @@
 const std = @import("std");
+const microzig = @import("microzig");
+
+const drivers = microzig.drivers.base;
 
 const SCALEALPHA: f32 = 0.000001;
-const OPENAIR_TA_SHIFT = 8;
 
 const CONTROL_REGISTER = 0x800D;
 const STATUS_REGISTER = 0x8000;
 
 const frame_loop: [2]u1 = [2]u1{ 0, 1 };
-const ksto_loop: [4]u2 = [4]u2{ 0, 1, 2, 3 };
 const refresh_rate_mask: u16 = 0b111 << 7;
 
 const Mlx90649Error = error{
@@ -30,18 +31,31 @@ pub fn I2C() type {
     };
 }
 
+pub const MLX90640_Config = struct {
+    i2c: *I2C(),
+    clock_device: drivers.Clock_Device,
+    open_air_shift: f32 = 8,
+    emissivity: f32 = 0.95,
+};
+
 pub fn MLX90640() type {
     return struct {
         const Self = @This();
         eeprom: [832]u16 = undefined,
         frame: [834]u16 = undefined,
+        emissivity: f32 = 0,
+        open_air_shift: f32 = 0,
         scratch_data: [768]f32 = undefined,
         i2c: *I2C(),
+        clock_device: drivers.Clock_Device,
         params: parameters,
 
-        pub fn init(i: *I2C()) MLX90640() {
+        pub fn init(cfg: MLX90640_Config) MLX90640() {
             return .{
-                .i2c = i,
+                .i2c = cfg.i2c,
+                .clock_device = cfg.clock_device,
+                .open_air_shift = cfg.open_air_shift,
+                .emissivity = cfg.emissivity,
                 .params = parameters{},
             };
         }
@@ -71,14 +85,13 @@ pub fn MLX90640() type {
             return @as(u2, @truncate(val));
         }
 
-        pub fn temperature(self: *Self, result: []f32, emissivity: f32, tr: f32) !void {
-            //std.log.debug("control {x}\n", .{self.frame[832]});
-
+        pub fn temperature(self: *Self, result: []f32) !void {
             try self.loadFrame();
 
             const subPage: u16 = self.frame[833] & 0x0001;
             const vdd = self.getVdd();
             const ta = self.getTa(vdd);
+            const tr = ta - self.open_air_shift;
 
             var ta4: f32 = (ta + 273.15);
             ta4 = ta4 * ta4;
@@ -86,7 +99,7 @@ pub fn MLX90640() type {
             var tr4: f32 = (tr + 273.15);
             tr4 = tr4 * tr4;
             tr4 = tr4 * tr4;
-            const taTr: f32 = tr4 - (tr4 - ta4) / emissivity;
+            const taTr: f32 = tr4 - (tr4 - ta4) / self.emissivity;
 
             const ktaScale: f32 = @floatFromInt(std.math.pow(u16, 2, self.params.ktaScale));
             const kvScale: f32 = @floatFromInt(std.math.pow(u16, 2, self.params.kvScale));
@@ -169,7 +182,7 @@ pub fn MLX90640() type {
                 }
 
                 irData = irData - self.params.tgc * irDataCP[subPage];
-                irData = irData / emissivity;
+                irData = irData / self.emissivity;
 
                 const alphax: f32 = @floatFromInt(self.params.alpha[i]);
                 var alphaCompensated: f32 = SCALEALPHA * alphaScale / alphax;
@@ -217,7 +230,7 @@ pub fn MLX90640() type {
                 while (!ready) {
                     try self.i2c.writeThenRead(STATUS_REGISTER, self.frame[833..834]);
                     ready = self.isReady(i, self.frame[833]);
-                    //time.sleep_ms(10); how to handle generic time?
+                    self.clock_device.sleep_ms(10);
                 }
 
                 try self.i2c.writeThenRead(0x0400, self.frame[0..832]);
@@ -846,10 +859,8 @@ test "get temperature" {
     var mi2c: MockI2C() = MockI2C().init();
     var camera = MLX90640().init(&mi2c.interface);
     try camera.extractParameters();
-    const emissivity: f32 = 0.95;
-    const tr: f32 = 23.15;
     var frame: [834]f32 = undefined;
-    try camera.temperature(&frame, emissivity, tr);
+    try camera.temperature(&frame);
 }
 
 fn MockI2C() type {

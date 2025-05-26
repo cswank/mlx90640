@@ -72,8 +72,14 @@ pub fn PicoI2C() type {
 pub fn main() !void {
     try init();
 
-    var pi2c: PicoI2C() = PicoI2C().init(&i2c0, i2c.Address.new(0x33));
-    var camera = lib.MLX90640().init(&pi2c.interface);
+    var pi2c = PicoI2C().init(&i2c0, i2c.Address.new(0x33));
+    var cd = rp2040.drivers.ClockDevice{};
+    const cfg = lib.MLX90640_Config{
+        .i2c = &pi2c.interface,
+        .clock_device = cd.clock_device(),
+    };
+
+    var camera = lib.MLX90640().init(cfg);
 
     const sn = try camera.serialNumber();
     std.log.info("camera serial number: 0x{x}", .{sn});
@@ -90,13 +96,10 @@ pub fn main() !void {
         return;
     };
 
-    const emissivity: f32 = 0.95;
-    const tr: f32 = 23.15;
     var temp: [834]f32 = undefined;
-
     var x: [24][32]f32 = undefined;
 
-    // the temperatures are all whack the first time
+    // the temperatures are all wack the first time
     try camera.loadFrame();
     time.sleep_ms(100);
 
@@ -105,7 +108,7 @@ pub fn main() !void {
     var max: f32 = 0;
 
     while (true) {
-        try camera.temperature(&temp, emissivity, tr);
+        try camera.temperature(&temp);
 
         for (0..24) |i| {
             for (0..32) |j| {
@@ -118,10 +121,9 @@ pub fn main() !void {
             }
         }
 
-        std.log.debug("{d},{d}", .{ maxi, maxj });
-        // for (0..24) |i| {
-        //     std.log.debug("{d:.3}\n", .{x[i]});
-        // }
+        for (0..24) |i| {
+            std.log.debug("{d:.3}\n", .{x[i]});
+        }
         time.sleep_ms(100);
         maxi = 0;
         maxj = 0;
