@@ -90,11 +90,22 @@ pub fn main() !void {
         return;
     };
 
-    //var frame: [834]u16 = undefined;
+    const emissivity: f32 = 0.95;
+    const tr: f32 = 23.15;
+    var temp: [834]f32 = undefined;
+
+    var x: [24][32]f32 = undefined;
 
     while (true) {
-        //try camera.pixels(&frame);
-        //std.log.info("{x}", .{frame[400..410]});
+        try camera.temperature(&temp, emissivity, tr);
+        for (0..24) |i| {
+            for (0..32) |j| {
+                x[i][j] = temp[i + (i * j)];
+            }
+        }
+        for (0..24) |i| {
+            std.log.debug("{d:.3}\n", .{x[i]});
+        }
         time.sleep_ms(100);
     }
 }
