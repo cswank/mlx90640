@@ -15,7 +15,7 @@ pub fn build(b: *std.Build) void {
         .name = "mlx90640",
         .target = target,
         .optimize = optimize,
-        .root_source_file = b.path("src/main.zig"),
+        .root_source_file = b.path("src/example.zig"),
     });
 
     mb.install_firmware(firmware, .{});

@@ -43,12 +43,12 @@ pub fn MLX90640() type {
         const Self = @This();
         eeprom: [832]u16 = undefined,
         frame: [834]u16 = undefined,
-        emissivity: f32 = 0,
-        open_air_shift: f32 = 0,
         scratch_data: [768]f32 = undefined,
         i2c: *I2C(),
         clock_device: drivers.Clock_Device,
         params: parameters,
+        emissivity: f32,
+        open_air_shift: f32,
 
         pub fn init(cfg: MLX90640_Config) MLX90640() {
             return .{
