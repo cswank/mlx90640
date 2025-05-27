@@ -29,14 +29,12 @@ pub fn PicoI2C() type {
         i2c: *rp2040.i2c.I2C,
         address: i2c.Address,
         interface: lib.I2C(),
-        frame_data: [834 * 2]u8,
         const Self = @This();
 
         pub fn init(i: *rp2040.i2c.I2C, address: i2c.Address) Self {
             return Self{
                 .i2c = i,
                 .address = address,
-                .frame_data = [_]u8{0} ** (834 * 2),
                 .interface = lib.I2C(){
                     .write_then_read_fn = writeThenRead,
                     .write_fn = write,
@@ -44,27 +42,14 @@ pub fn PicoI2C() type {
             };
         }
 
-        pub fn writeThenRead(comm: *lib.I2C(), address: u16, buf: []u16) !void {
+        pub fn writeThenRead(comm: *lib.I2C(), req: []u8, buf: []u8) !void {
             const self: *Self = @fieldParentPtr("interface", comm);
-
-            const req = [2]u8{ @as(u8, @truncate(address >> 8)), @as(u8, @truncate(address & 0xFF)) };
-            try self.i2c.write_then_read_blocking(self.address, &req, self.frame_data[0 .. buf.len * 2], null);
-            for (0.., buf) |i, _| {
-                buf[i] = std.mem.readInt(u16, self.frame_data[i * 2 .. (i * 2) + 2][0..2], .big);
-            }
+            try self.i2c.write_then_read_blocking(self.address, req, buf, null);
         }
 
-        pub fn write(comm: *lib.I2C(), address: u16, val: u48) !void {
+        pub fn write(comm: *lib.I2C(), buf: []u8) !void {
             const self: *Self = @fieldParentPtr("interface", comm);
-
-            const req = [4]u8{
-                @as(u8, @truncate(address >> 8)),
-                @as(u8, @truncate(address & 0xFF)),
-                @as(u8, @truncate(val >> 8)),
-                @as(u8, @truncate(val & 0xFF)),
-            };
-
-            try self.i2c.write_blocking(self.address, &req, null);
+            try self.i2c.write_blocking(self.address, buf, null);
         }
     };
 }
