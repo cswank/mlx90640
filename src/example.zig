@@ -83,6 +83,7 @@ pub fn main() !void {
 
     var temp: [834]f32 = undefined;
     var x: [24][32]f32 = undefined;
+    var img: [24][32]u8 = undefined;
 
     // the temperatures are all wack the first time
     try camera.loadFrame();
@@ -91,15 +92,29 @@ pub fn main() !void {
     var maxi: i8 = 0;
     var maxj: i8 = 0;
     var max: f32 = 0;
+    var min: f32 = 100.0;
 
     while (true) {
         try camera.temperature(&temp);
 
+        for (0..768) |i| {
+            if (temp[i] > max) {
+                max = temp[i];
+            }
+            if (temp[i] < min) {
+                min = temp[i];
+            }
+        }
+
+        std.log.debug("min: {d}, max: {d}", .{ min, max });
+        var val: f32 = 0;
         for (0..24) |i| {
             for (0..32) |j| {
-                x[i][j] = temp[i + (i * j)];
-                if (x[i][j] > max) {
-                    max = x[i][j];
+                val = temp[i + (i * j)];
+                x[i][j] = val;
+                img[i][j] = @intFromFloat(((val - min) / (max - min)) * 255);
+                if (val > max) {
+                    max = val;
                     maxi = @intCast(i);
                     maxj = @intCast(j);
                 }
@@ -107,12 +122,14 @@ pub fn main() !void {
         }
 
         for (0..24) |i| {
-            std.log.debug("{d:.3}\n", .{x[i]});
+            std.log.debug("{x}", .{img[i]});
         }
+
         time.sleep_ms(100);
         maxi = 0;
         maxj = 0;
         max = 0;
+        min = 100;
     }
 }
 

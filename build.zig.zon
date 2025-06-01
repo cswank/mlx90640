@@ -37,8 +37,8 @@
     // internet connectivity.
     .dependencies = .{
         .microzig = .{
-            .url = "https://github.com/ZigEmbeddedGroup/microzig/releases/download/0.14.0/microzig.tar.gz",
-            .hash = "microzig-0.14.0-D20YSYovCABVPxJK2cGyiLO9JMDmgqVsGkesD1wlFkR4",
+            .url = "https://github.com/ZigEmbeddedGroup/microzig/releases/download/0.14.1/microzig.tar.gz",
+            .hash = "microzig-0.14.1-D20YSWs2CAC8_NXi4HglJctgh00Fst0GQFl3s1TQKbx-",
         },
     },
     .paths = .{
